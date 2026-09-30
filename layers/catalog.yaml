@@ -1,0 +1,118 @@
+# ─────────────────────────────────────────────────────────────
+# LAYER 1 · DATA CATALOG  —  "Which data should we use?"
+# Metadata about data assets: owner, freshness, lineage, quality.
+# ─────────────────────────────────────────────────────────────
+datasets:
+  - name: sales_data
+    description: Official order & sales data for analysis. Source of truth for revenue.
+    owner: Sales Data Team
+    steward: priya.nair@anytime-appliances.in
+    certified: true
+    status: active
+    updated_at: "2026-09-30 08:00"
+    refresh: daily 08:00 IST
+    lineage: ERP_ORDERS → nightly ETL → SALES_DATA
+    quality_score: 0.98
+    classification: internal
+    columns:
+      order_id: unique order id
+      order_date: date the order was placed (YYYY-MM-DD)
+      customer_id: → customers.customer_id
+      product_id: → products.product_id
+      qty: units
+      net_amount: pre-tax amount in INR
+      gst_amount: GST (18%) in INR
+      gross_amount: net + GST in INR
+      cancel_flag: "'Y' if the order was cancelled, else 'N'"
+    glossary_terms: [Revenue, Order, Cancellation]
+
+  - name: sales_backup_2025
+    description: One-off backup of sales taken before the ERP migration. DO NOT use for reporting.
+    owner: Platform Team
+    certified: false
+    status: deprecated
+    updated_at: "2025-12-31 23:10"
+    refresh: none
+    lineage: SALES_DATA (snapshot) → SALES_BACKUP_2025
+    quality_score: 0.61
+    classification: internal
+    columns: {order_id: "", order_date: "", customer_id: "", product_id: "", qty: "", amount: gross incl. GST, status: ""}
+    glossary_terms: []
+
+  - name: sales_region_tmp
+    description: Analyst sandbox with a region rollup. Built by hand, uses an old region mapping.
+    owner: r.sharma (personal sandbox)
+    certified: false
+    status: sandbox
+    updated_at: "2026-08-20 17:45"
+    refresh: manual
+    lineage: sales_data + spreadsheet(region_map_v1.xlsx) → SALES_REGION_TMP
+    quality_score: 0.55
+    classification: internal
+    columns: {month: "", region: "", revenue: "gross incl. GST and cancellations"}
+    glossary_terms: []
+
+  - name: customers
+    description: Customer master (B2B dealers & retailers).
+    owner: CRM Team
+    certified: true
+    status: active
+    updated_at: "2026-09-30 06:00"
+    refresh: daily
+    lineage: CRM → CUSTOMERS
+    quality_score: 0.95
+    classification: confidential (contains PII)
+    columns: {customer_id: "", name: "", city: "", state_code: "2-letter state code", segment: "Platinum | Gold | Standard", warehouse: serving DC}
+    glossary_terms: [Customer, Premium Customer, Region]
+
+  - name: products
+    description: Product master.
+    owner: Product Ops
+    certified: true
+    status: active
+    updated_at: "2026-09-29 22:00"
+    refresh: daily
+    lineage: PLM → PRODUCTS
+    quality_score: 0.97
+    classification: public
+    columns: {product_id: "", name: "", category: "", unit_price: INR}
+    glossary_terms: [Product]
+
+  - name: suppliers
+    description: Supplier master.
+    owner: Procurement
+    certified: true
+    status: active
+    updated_at: "2026-09-15 10:00"
+    refresh: weekly
+    lineage: SAP_VENDORS → SUPPLIERS
+    quality_score: 0.93
+    classification: internal
+    columns: {supplier_id: "", name: "", city: ""}
+    glossary_terms: [Supplier]
+
+  - name: shipments
+    description: Inbound shipments from suppliers to our distribution centres (DCs).
+    owner: Supply Chain Analytics
+    certified: true
+    status: active
+    updated_at: "2026-09-30 07:30"
+    refresh: daily
+    lineage: WMS_INBOUND → SHIPMENTS
+    quality_score: 0.92
+    classification: internal
+    columns: {shipment_id: "", supplier_id: "", product_id: "", warehouse: "", promised_date: "", delivered_date: "", qty: ""}
+    glossary_terms: [Supplier, Shipment Delay]
+
+# A Business Glossary lives inside the catalog: words + definitions + links to assets.
+# Note: it has NO relationships, hierarchy or rules. That is the Ontology's job.
+glossary:
+  - term: Revenue
+    definition: Money we earn from orders.
+    linked_assets: [sales_data]
+  - term: Premium Customer
+    definition: Our most valuable customers.
+    linked_assets: [customers]
+  - term: Region
+    definition: Sales geography used in reporting.
+    linked_assets: [customers]

@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Enterprise Context Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&family=Kalam:wght@700&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<style>
+:root {
+  --paper: #fbf8f1; --card: #fff; --ink: #1e1e1e; --muted: #6b6f76; --line: #e6dfd0;
+  --catalog: #1971c2; --semantic: #2f9e44; --ontology: #6741d9; --kg: #e8590c; --raw: #868e96;
+  --catalog-bg: #e7f1fb; --semantic-bg: #e9f7ec; --ontology-bg: #f0ebff; --kg-bg: #fff0e6; --raw-bg: #f1f3f5;
+  --bad: #e03131; --good: #2f9e44;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--paper); color: var(--ink); font: 14px/1.45 Inter, system-ui, sans-serif; display: flex; flex-direction: column; }
+button { font: inherit; cursor: pointer; }
+code, pre { font-family: var(--mono); }
+
+header { display: flex; align-items: center; gap: 18px; padding: 12px 20px; border-bottom: 2px solid var(--line); background: var(--card); flex-wrap: wrap; }
+.brand { font-weight: 800; font-size: 17px; letter-spacing: -.01em; }
+.brand small { display: block; font-weight: 600; font-size: 11px; color: var(--muted); letter-spacing: .12em; }
+.toggles { display: flex; gap: 8px; flex-wrap: wrap; }
+.tg { display: flex; align-items: center; gap: 8px; border: 2px solid var(--c); background: var(--bg); color: var(--c); font-weight: 700; padding: 6px 12px; border-radius: 999px; user-select: none; }
+.tg .n { background: var(--c); color: #fff; border-radius: 50%; width: 20px; height: 20px; display: grid; place-items: center; font-size: 11px; }
+.tg.off { background: #fff; color: #adb5bd; border-color: #dee2e6; text-decoration: line-through; }
+.tg.off .n { background: #dee2e6; }
+.spacer { flex: 1; }
+.btn { border: 2px solid var(--ink); background: #fff; border-radius: 10px; padding: 7px 14px; font-weight: 700; }
+.btn.primary { background: var(--ink); color: #fff; }
+.btn:disabled { opacity: .5; cursor: default; }
+.model { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+main { flex: 1; display: grid; grid-template-columns: minmax(380px, 42%) 1fr; min-height: 0; }
+.left { display: flex; flex-direction: column; border-right: 2px solid var(--line); min-height: 0; }
+.ask { padding: 14px 16px; border-bottom: 2px solid var(--line); background: var(--card); }
+.ask textarea { width: 100%; border: 2px solid var(--ink); border-radius: 12px; padding: 10px 12px; font: 600 15px Inter, sans-serif; resize: none; height: 62px; }
+.ask-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+.chip { border: 1.5px solid #ced4da; background: #fff; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #495057; }
+.chip:hover { border-color: var(--ink); }
+.feed { flex: 1; overflow: auto; padding: 14px 16px 30px; }
+.empty { color: var(--muted); text-align: center; margin-top: 40px; font-family: Kalam, cursive; font-size: 20px; }
+
+.ev { border-left: 4px solid var(--c, var(--raw)); background: var(--card); border-radius: 0 10px 10px 0; padding: 8px 12px; margin-bottom: 8px; box-shadow: 0 1px 0 var(--line); animation: pop .25s ease-out; }
+@keyframes pop { from { opacity: 0; transform: translateY(6px); } }
+.ev-head { display: flex; gap: 8px; align-items: center; }
+.lay { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #fff; background: var(--c); padding: 2px 7px; border-radius: 5px; }
+.fn { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+.args { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 3px; word-break: break-word; }
+.res { margin-top: 6px; font-size: 12.5px; }
+.res table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.res th, .res td { text-align: left; padding: 3px 6px; border-bottom: 1px solid #f1f3f5; }
+.res th { color: var(--muted); font-weight: 600; }
+.num { text-align: right !important; font-variant-numeric: tabular-nums; }
+.neg { color: var(--bad); font-weight: 700; } .pos { color: var(--good); font-weight: 700; }
+.pill { display: inline-block; border-radius: 6px; padding: 1px 7px; margin: 2px 3px 2px 0; font-size: 11.5px; font-weight: 600; background: var(--raw-bg); }
+.pill.ok { background: var(--semantic-bg); color: var(--semantic); }
+.pill.warn { background: #fff5f5; color: var(--bad); }
+.pill.v { background: var(--ontology-bg); color: var(--ontology); }
+details summary { cursor: pointer; color: var(--muted); font-size: 11.5px; margin-top: 4px; }
+pre.code { background: #0d1117; color: #e6edf3; border-radius: 8px; padding: 8px 10px; font-size: 11.5px; overflow: auto; margin: 4px 0 0; white-space: pre-wrap; }
+.err { color: var(--bad); font-family: var(--mono); font-size: 12px; }
+.thinking { color: var(--muted); font-size: 12px; font-style: italic; margin: 4px 0 8px 6px; }
+.answer { background: #fffdf2; border: 2px solid var(--ink); border-radius: 14px; padding: 12px 16px; margin-top: 12px; box-shadow: 5px 5px 0 rgba(0,0,0,.07); }
+.answer h4 { margin: 0 0 6px; font-size: 12px; letter-spacing: .12em; color: var(--muted); }
+.answer p, .answer ul { margin: 6px 0; } .answer ul { padding-left: 18px; }
+
+.right { display: flex; flex-direction: column; min-height: 0; }
+.tabs { display: flex; gap: 4px; padding: 10px 14px 0; border-bottom: 2px solid var(--line); background: var(--card); flex-wrap: wrap; }
+.tab { border: none; background: none; padding: 8px 12px; font-weight: 700; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -2px; }
+.tab.on { color: var(--ink); border-color: var(--tc, var(--ink)); }
+.tab .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--tc); margin-right: 6px; }
+.follow { margin-left: auto; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.pane { flex: 1; min-height: 0; display: none; overflow: auto; padding: 14px; }
+.pane.on { display: block; }
+#pane-kg.on, #pane-onto.on { display: flex; flex-direction: column; }
+.graph { flex: 1; min-height: 380px; background: #fff; border: 2px solid var(--line); border-radius: 14px; }
+.pane-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.pane-bar h3 { margin: 0; font-size: 15px; }
+.legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.card { background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.card h3 { margin: 0 0 8px; font-size: 14px; }
+.card .sub { color: var(--muted); font-size: 12px; margin: -4px 0 8px; }
+.big { display: flex; gap: 14px; }
+.big > div { flex: 1; border-radius: 12px; padding: 10px 12px; }
+.big .k { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.big .v { font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+.big .d { font-size: 12px; color: var(--muted); }
+.ds { border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; background: #fff; margin-bottom: 10px; transition: .3s; }
+.ds.hl { border-color: var(--catalog); box-shadow: 0 0 0 4px var(--catalog-bg); }
+.ds.bad { opacity: .75; }
+.ds-h { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ds-h b { font-family: var(--mono); }
+.meta { display: grid; grid-template-columns: 110px 1fr; gap: 2px 10px; font-size: 12px; margin-top: 6px; }
+.meta span:nth-child(odd) { color: var(--muted); }
+.ttl { font-size: 11.5px; max-height: 260px; }
+#agentChartCard { display: none; border-color: var(--semantic); }
+.cbox { position: relative; height: 260px; }
+
+.compare { position: fixed; inset: 0; background: rgba(20,20,20,.55); display: none; z-index: 20; padding: 24px; }
+.compare.on { display: block; }
+.cmp-box { background: var(--paper); border-radius: 18px; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.cmp-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: var(--card); border-bottom: 2px solid var(--line); }
+.cmp-head b { font-size: 16px; }
+.cmp-cols { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+.cmp-col { display: flex; flex-direction: column; min-height: 0; }
+.cmp-col + .cmp-col { border-left: 2px solid var(--line); }
+.cmp-title { padding: 10px 16px; font-weight: 800; display: flex; gap: 8px; align-items: center; }
+.cmp-col .feed { padding-top: 0; }
+
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; }
+  .left { border-right: none; border-bottom: 2px solid var(--line); max-height: 60vh; }
+  .grid2, .cmp-cols { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Enterprise Context Console<small>AI ANYTIME · CATALOG · SEMANTIC · ONTOLOGY · KG</small></div>
+  <div class="toggles" id="toggles"></div>
+  <div class="spacer"></div>
+  <span class="model" id="model"></span>
+  <button class="btn" id="cmpBtn" title="Run the same question with no layers vs all four">⚔ Compare naive vs 4-layer</button>
+</header>
+
+<main>
+  <section class="left">
+    <div class="ask">
+      <textarea id="q">Why did South India revenue drop in September 2026 compared to August?</textarea>
+      <div class="ask-row">
+        <button class="btn primary" id="askBtn">Ask agent ▶</button>
+        <button class="chip" data-q="Why did South India revenue drop in September 2026 compared to August?">South India drop</button>
+        <button class="chip" data-q="How did our key accounts in the South do month-on-month?">Key accounts (South)</button>
+        <button class="chip" data-q="Is Goa part of South India for our reporting? Show Goa's revenue MoM too.">Is Goa South?</button>
+        <button class="chip" data-q="Which suppliers are connected to the products whose South India revenue fell the most, and how late were their shipments?">Supplier trace</button>
+      </div>
+    </div>
+    <div class="feed" id="feed"><div class="empty">Ask a question. Turn layers on/off at the top to see what the agent loses.</div></div>
+  </section>
+
+  <section class="right">
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-p="kg" style="--tc:var(--kg)"><span class="dot"></span>Knowledge Graph</button>
+      <button class="tab" data-p="charts" style="--tc:var(--semantic)"><span class="dot"></span>Charts</button>
+      <button class="tab" data-p="onto" style="--tc:var(--ontology)"><span class="dot"></span>Ontology</button>
+      <button class="tab" data-p="catalog" style="--tc:var(--catalog)"><span class="dot"></span>Data Catalog</button>
+      <button class="tab" data-p="sem" style="--tc:var(--semantic)"><span class="dot"></span>Semantic Layer</button>
+      <label class="follow"><input type="checkbox" id="follow" checked /> follow the agent</label>
+    </div>
+
+    <div class="pane on" id="pane-kg">
+      <div class="pane-bar">
+        <h3 id="kgTitle">South India: customers, products, DCs, suppliers (Neo4j)</h3>
+        <button class="chip" id="kgReset">show full region</button>
+        <div class="spacer"></div>
+        <div class="legend" id="kgLegend"></div>
+      </div>
+      <div class="graph" id="kgGraph"></div>
+    </div>
+
+    <div class="pane" id="pane-charts">
+      <div class="card" id="agentChartCard" style="margin-bottom:14px">
+        <h3 id="agentChartTitle">Agent's last metric query</h3>
+        <div class="cbox" style="height:200px"><canvas id="agentChart"></canvas></div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <h3>Same question, two numbers</h3>
+        <div class="sub">South India, Sep vs Aug. Raw table sum vs the governed "revenue" metric</div>
+        <div class="big" id="bigNums"></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h3>Revenue trend</h3><div class="sub">₹ lakh · governed metric</div><div class="cbox"><canvas id="cTrend"></canvas></div></div>
+        <div class="card"><h3>South India by state</h3><div class="sub">states resolved by the ontology · ₹ lakh</div><div class="cbox"><canvas id="cState"></canvas></div></div>
+        <div class="card"><h3>South India by product</h3><div class="sub">Aug vs Sep · ₹ lakh</div><div class="cbox"><canvas id="cProduct"></canvas></div></div>
+        <div class="card"><h3>Supplier lanes: avg delay (days)</h3><div class="sub">from the knowledge graph</div><div class="cbox"><canvas id="cLanes"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-onto">
+      <div class="pane-bar">
+        <h3>Ontology: the blueprint (rdflib · Turtle/OWL)</h3>
+        <div class="spacer"></div>
+        <div class="legend"><span><i style="background:#d0bfff"></i>class</span><span><i style="background:#ffec99"></i>region (instance)</span><span>── relationship</span><span>- - is-a</span></div>
+      </div>
+      <div class="graph" id="ontoGraph"></div>
+      <details style="margin-top:8px"><summary>ontology.ttl</summary><pre class="code ttl" id="ttl"></pre></details>
+    </div>
+
+    <div class="pane" id="pane-catalog"><div id="catalogList"></div></div>
+    <div class="pane" id="pane-sem"><div id="semList"></div></div>
+  </section>
+</main>
+
+<div class="compare" id="compare">
+  <div class="cmp-box">
+    <div class="cmp-head"><b id="cmpQ"></b><div class="spacer"></div><button class="btn" id="cmpClose">Close ✕</button></div>
+    <div class="cmp-cols">
+      <div class="cmp-col"><div class="cmp-title"><span class="lay" style="--c:var(--raw)">no layers</span>Naive agent: tables + SQL only</div><div class="feed" id="feedA"></div></div>
+      <div class="cmp-col"><div class="cmp-title"><span class="lay" style="--c:var(--ink);background:var(--ink)">4 layers</span>Catalog + Semantic + Ontology + KG</div><div class="feed" id="feedB"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const LAYERS = [
+  { id: 'catalog', name: 'Data Catalog', n: 1 },
+  { id: 'semantic', name: 'Semantic Layer', n: 2 },
+  { id: 'ontology', name: 'Ontology', n: 3 },
+  { id: 'kg', name: 'Knowledge Graph', n: 4 },
+];
+const LNAME = { catalog: 'catalog', semantic: 'semantic', ontology: 'ontology', kg: 'graph', raw: 'raw sql' };
+const on = new Set(LAYERS.map(l => l.id));
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const lakh = v => (v / 1e5).toFixed(1);
+const pct = v => v == null ? '–' : `<span class="${v < 0 ? 'neg' : 'pos'}">${v > 0 ? '+' : ''}${v}%</span>`;
+
+// ── layer toggles ──
+const tg = $('#toggles');
+LAYERS.forEach(l => {
+  const b = document.createElement('div');
+  b.className = 'tg'; b.style.setProperty('--c', `var(--${l.id})`); b.style.setProperty('--bg', `var(--${l.id}-bg)`);
+  b.innerHTML = `<span class="n">${l.n}</span>${l.name}`;
+  b.onclick = () => { on.has(l.id) ? on.delete(l.id) : on.add(l.id); b.classList.toggle('off', !on.has(l.id)); };
+  tg.appendChild(b);
+});
+
+// ── tabs ──
+function showTab(p) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.p === p));
+  document.querySelectorAll('.pane').forEach(x => x.classList.toggle('on', x.id === 'pane-' + p));
+  if (p === 'charts') setTimeout(() => Object.values(charts).forEach(c => c.resize()), 30);
+  if (p === 'kg' && kgNet) setTimeout(() => kgNet.fit(), 50);
+  if (p === 'onto' && ontoNet) setTimeout(() => ontoNet.fit(), 50);
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => showTab(t.dataset.p));
+const follow = p => { if ($('#follow').checked) showTab(p); };
+
+// ── graphs ──
+const GROUPS = {
+  Region: { color: { background: '#ffec99', border: '#f08c00' }, shape: 'box', font: { size: 18, face: 'Inter', bold: true } },
+  State: { color: { background: '#e9ecef', border: '#495057' }, shape: 'circle' },
+  Customer: { color: { background: '#a5d8ff', border: '#1971c2' }, shape: 'dot', size: 12 },
+  Product: { color: { background: '#b2f2bb', border: '#2f9e44' }, shape: 'box' },
+  Warehouse: { color: { background: '#d0bfff', border: '#6741d9' }, shape: 'database' },
+  Supplier: { color: { background: '#ffc9c9', border: '#e03131' }, shape: 'hexagon', size: 22 },
+};
+$('#kgLegend').innerHTML = Object.entries(GROUPS).map(([k, g]) => `<span><i style="background:${g.color.background};border:1px solid ${g.color.border}"></i>${k}</span>`).join('');
+let kgNet, ontoNet, kgFull;
+const LEVEL = { Region: 0, State: 1, Customer: 2, Product: 3, Supplier: 4, Warehouse: 5 };
+function drawKG(data, title, trace = false) {
+  $('#kgTitle').textContent = title;
+  const nodes = new vis.DataSet(data.nodes.map(n => ({ ...n, level: LEVEL[n.group],
+    label: !trace && n.group === 'Customer' ? undefined : n.label, title: n.label,
+    font: { face: 'Inter', size: trace ? 15 : 13, ...(GROUPS[n.group]?.font || {}) } })));
+  const edges = new vis.DataSet(data.edges.map((e, i) => ({ id: i, ...e, arrows: 'to', font: { size: 11, face: 'Inter', strokeWidth: 3, color: '#495057' },
+    color: { color: e.label?.startsWith('bought less') ? '#e03131' : e.label?.startsWith('SHIPS_TO') ? '#e8590c' : '#ced4da' },
+    width: e.label?.startsWith('bought less') || e.label?.startsWith('SHIPS_TO') ? 2.5 : 1 })));
+  kgNet?.destroy();
+  kgNet = new vis.Network($('#kgGraph'), { nodes, edges }, trace ? {
+    groups: GROUPS, interaction: { hover: true },
+    layout: { hierarchical: { direction: 'LR', levelSeparation: 230, nodeSpacing: 60, sortMethod: 'directed' } },
+    physics: false, edges: { smooth: { type: 'cubicBezier', forceDirection: 'horizontal', roundness: .4 } },
+  } : {
+    groups: GROUPS, interaction: { hover: true, tooltipDelay: 80 },
+    physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -110, springLength: 120, avoidOverlap: .6 }, stabilization: { iterations: 300 } },
+    edges: { smooth: false },
+  });
+}
+async function loadKG() {
+  try {
+    kgFull = await (await fetch('/api/kg')).json();
+    drawKG(kgFull, 'South India: customers, products, DCs, suppliers (Neo4j)');
+  } catch (e) { $('#kgGraph').innerHTML = `<p class="err" style="padding:20px">Neo4j not reachable: ${esc(e)}</p>`; }
+}
+$('#kgReset').onclick = () => kgFull && drawKG(kgFull, 'South India: customers, products, DCs, suppliers (Neo4j)');
+
+async function loadOnto() {
+  const d = await (await fetch('/api/ontology')).json();
+  $('#ttl').textContent = d.ttl;
+  const nodes = new vis.DataSet(d.nodes.map(n => ({ ...n, shape: 'box', margin: 8, font: { face: 'Inter', size: 14 },
+    color: n.group === 'region' ? { background: '#ffec99', border: '#f08c00' } : { background: '#f0ebff', border: '#6741d9' } })));
+  const edges = new vis.DataSet(d.edges.map((e, i) => ({ id: i, ...e, arrows: 'to', font: { size: 11, face: 'Inter', strokeWidth: 3 },
+    dashes: e.kind !== 'rel', color: { color: e.kind === 'rel' ? '#6741d9' : '#adb5bd' } })));
+  ontoNet = new vis.Network($('#ontoGraph'), { nodes, edges }, {
+    physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -90, springLength: 130 } },
+    edges: { smooth: { type: 'dynamic' } },
+  });
+  window._onto = nodes;
+}
+function highlightConcept(id) {
+  if (!ontoNet || !window._onto.get(id)) return;
+  ontoNet.selectNodes([id]); ontoNet.focus(id, { scale: 1.2, animation: true });
+}
+
+// ── catalog + semantic panes ──
+async function loadCatalog() {
+  const c = await (await fetch('/api/catalog')).json();
+  $('#catalogList').innerHTML = c.datasets.map(d => `
+    <div class="ds ${d.certified ? '' : 'bad'}" id="ds-${d.name}">
+      <div class="ds-h"><b>${d.name}</b>
+        ${d.certified ? '<span class="pill ok">✓ certified</span>' : '<span class="pill warn">not certified</span>'}
+        <span class="pill ${d.status === 'active' ? '' : 'warn'}">${d.status}</span></div>
+      <div style="margin-top:4px">${esc(d.description)}</div>
+      <div class="meta"><span>Owner</span><span>${esc(d.owner)}</span><span>Updated</span><span>${d.updated_at}</span>
+        <span>Lineage</span><span>${esc(d.lineage)}</span><span>Quality</span><span>${d.quality_score}</span></div>
+    </div>`).join('') +
+    `<div class="card"><h3>Business Glossary (inside the catalog)</h3><div class="sub">words and definitions only: no hierarchy, no relationships, no rules</div>
+     ${c.glossary.map(g => `<div><b>${g.term}</b>: ${esc(g.definition)} <span class="pill">${g.linked_assets.join(', ')}</span></div>`).join('')}</div>`;
+}
+async function loadSemantic() {
+  const s = await (await fetch('/api/semantic')).json();
+  $('#semList').innerHTML = Object.entries(s.metrics).map(([k, m]) => `
+    <div class="ds" id="m-${k}"><div class="ds-h"><b>${k}</b><span class="pill">${esc(m.owner)}</span></div>
+      <div style="margin-top:4px">${esc(m.description)}</div>
+      <pre class="code">${esc(m.expr)}${m.filters.length ? '\nWHERE ' + esc(m.filters.join(' AND ')) : ''}</pre></div>`).join('') +
+    `<div class="card"><h3>Reporting calendar</h3><pre class="code">${esc(JSON.stringify(s.reporting_calendar, null, 2))}</pre></div>`;
+}
+
+// ── charts ──
+Chart.defaults.font.family = 'Inter'; Chart.defaults.color = '#495057';
+Chart.defaults.maintainAspectRatio = false; Chart.defaults.responsive = true;
+const charts = {};
+function chart(id, cfg) { charts[id]?.destroy(); charts[id] = new Chart(document.getElementById(id), cfg); }
+async function loadDashboard() {
+  const d = await (await fetch('/api/dashboard')).json();
+  const months = Object.keys(d.trend);
+  chart('cTrend', { type: 'line', data: { labels: months, datasets: [
+    { label: 'South India', data: months.map(m => lakh(d.trend[m]['South India'])), borderColor: '#e03131', backgroundColor: '#e03131', tension: .3, borderWidth: 3 },
+    { label: 'Rest of India', data: months.map(m => lakh(d.trend[m]['Rest of India'])), borderColor: '#1971c2', backgroundColor: '#1971c2', tension: .3, borderWidth: 3 },
+  ] } });
+  const bars = (id, rows) => chart(id, { type: 'bar', data: { labels: rows.map(r => r.key.length > 18 ? r.key.slice(0, 17) + '…' : r.key), datasets: [
+    { label: 'Aug', data: rows.map(r => lakh(r.previous)), backgroundColor: '#ced4da' },
+    { label: 'Sep', data: rows.map(r => lakh(r.current)), backgroundColor: rows.map(r => r.change < 0 ? '#ff8787' : '#8ce99a') },
+  ] }, options: { indexAxis: id === 'cProduct' ? 'y' : 'x' } });
+  bars('cState', d.by_state); bars('cProduct', d.by_product);
+  chart('cLanes', { type: 'bar', data: { labels: d.lanes.map(l => `${l.supplier.split(' ').find(w => w !== 'Sri')} → ${l.warehouse.replace('DC-', '')} · ${l.product_id}`), datasets: [
+    { label: 'Aug', data: d.lanes.map(l => l.avg_delay_days_previous), backgroundColor: '#ced4da' },
+    { label: 'Sep', data: d.lanes.map(l => l.avg_delay_days_current), backgroundColor: d.lanes.map(l => l.avg_delay_days_current > 5 ? '#e8590c' : '#ffd8a8') },
+  ] }, options: { indexAxis: 'y' } });
+  const n = d.naive_vs_governed;
+  $('#bigNums').innerHTML = `
+    <div style="background:var(--raw-bg)"><div class="k" style="color:var(--raw)">Naive: SUM(gross_amount)</div><div class="v">${pct(n.naive.change_pct)}</div>
+      <div class="d">₹${lakh(n.naive.previous)}L → ₹${lakh(n.naive.current)}L · incl. GST and cancelled orders</div></div>
+    <div style="background:var(--semantic-bg)"><div class="k" style="color:var(--semantic)">Governed metric: revenue</div><div class="v">${pct(n.governed.change_pct)}</div>
+      <div class="d">₹${lakh(n.governed.previous)}L → ₹${lakh(n.governed.current)}L · pre-tax, excl. cancellations</div></div>`;
+}
+function agentChart(r) {
+  if (!r.rows?.length) return;
+  $('#agentChartCard').style.display = 'block';
+  $('#agentChartTitle').textContent = `Agent query: ${r.metric} by ${r.group_by || 'total'} · ${r.previous ? r.previous + ' vs ' : ''}${r.current}`;
+  const money = r.unit === 'INR';
+  const f = v => money ? lakh(v) : v;
+  const ds = [{ label: r.current, data: r.rows.map(x => f(x.current)), backgroundColor: '#2f9e44' }];
+  if (r.previous) ds.unshift({ label: r.previous, data: r.rows.map(x => f(x.previous)), backgroundColor: '#ced4da' });
+  chart('agentChart', { type: 'bar', data: { labels: r.rows.map(x => String(x.key).slice(0, 22)), datasets: ds } });
+}
+
+// ── agent run + rendering ──
+function table(rows, cols) {
+  if (!rows?.length) return '<i>no rows</i>';
+  cols = cols || Object.keys(rows[0]);
+  return `<table><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr>${rows.slice(0, 10).map(r => `<tr>${cols.map(c => {
+    const v = r[c]; const n = typeof v === 'number';
+    return `<td class="${n ? 'num' : ''}">${n && Math.abs(v) >= 1e5 ? '₹' + lakh(v) + 'L' : esc(Array.isArray(v) ? v.join(', ') : v)}</td>`;
+  }).join('')}</tr>`).join('')}</table>`;
+}
+function renderResult(ev) {
+  const r = ev.result;
+  if (r.error) return `<div class="err">⚠ ${esc(r.error)}</div>${r.sql ? `<pre class="code">${esc(r.sql)}</pre>` : ''}`;
+  switch (ev.name) {
+    case 'search_catalog':
+      return r.datasets.map(d => `<span class="pill ${d.certified ? 'ok' : 'warn'}">${d.certified ? '✓' : '⚠'} ${d.name} · ${d.status} · ${d.updated_at.slice(0, 10)}</span>`).join('');
+    case 'get_metric':
+      return `<pre class="code">${esc(r.expr || '')}${r.filters?.length ? '\nWHERE ' + esc(r.filters.join(' AND ')) : ''}</pre><div style="margin-top:4px">${esc(r.description || '')}</div>`;
+    case 'query_metric':
+      return table(r.rows.map(x => ({ [r.group_by || 'scope']: x.key, [r.previous || '']: x.previous, [r.current]: x.current, 'Δ%': x.change_pct })).map(o => { delete o['']; return o; }))
+        .replace(/<td class="num">(-?\d+\.?\d*)<\/td><\/tr>/g, (m, v) => `<td class="num">${pct(+v)}</td></tr>`) +
+        `<details><summary>compiled SQL</summary><pre class="code">${esc(r.sql)}</pre></details>`;
+    case 'ontology_lookup':
+      if (!r.found) return `<i>not found</i>`;
+      return `<b>${esc(r.label)}</b> <span class="pill v">${esc(r.concept)}</span><div>${esc(r.definition)}</div>` +
+        (r.state_codes ? `<div>${r.member_states.map(s => `<span class="pill v">${s.code} ${s.name}</span>`).join('')}</div>` : '') +
+        (r.is_a?.length ? `<div>is-a → ${r.is_a.map(esc).join(' → ')}</div>` : '') +
+        (r.maps_to_data ? `<div>maps to <code>${esc(r.maps_to_data)}</code></div>` : '') +
+        (r.business_rules?.length ? `<div>${r.business_rules.map(x => `<span class="pill">📏 ${esc(x)}</span>`).join('')}</div>` : '');
+    case 'trace_relationships':
+      return table(r.products_with_biggest_drop, ['product', 'previous', 'current', 'customers_down', 'cancelled_orders']) +
+        '<div style="height:6px"></div>' + table(r.supply_lanes_for_those_products, ['supplier', 'product_id', 'warehouse', 'avg_delay_days_previous', 'avg_delay_days_current']);
+    case 'list_tables':
+      return Object.keys(r).map(t => `<span class="pill">${t}</span>`).join('');
+    case 'run_sql': case 'run_cypher':
+      return table(r.rows) + `<details><summary>${ev.name === 'run_sql' ? 'SQL' : 'Cypher'}</summary><pre class="code">${esc(r.sql || r.cypher)}</pre></details>`;
+  }
+  return `<pre class="code">${esc(JSON.stringify(r, null, 1).slice(0, 800))}</pre>`;
+}
+function sideEffects(ev) {
+  const r = ev.result; if (r.error) return;
+  if (ev.name === 'search_catalog') {
+    follow('catalog');
+    document.querySelectorAll('.ds').forEach(x => x.classList.remove('hl'));
+    const top = r.datasets.find(d => d.certified); top && document.getElementById('ds-' + top.name)?.classList.add('hl');
+  }
+  if (ev.name === 'ontology_lookup' && r.found) { follow('onto'); setTimeout(() => highlightConcept(r.concept === 'SouthIndia' ? 'SouthIndia' : r.concept), 120); }
+  if (ev.name === 'get_metric') { follow('sem'); document.getElementById('m-' + r.metric)?.scrollIntoView({ behavior: 'smooth' }); }
+  if (ev.name === 'query_metric') { agentChart(r); follow('charts'); }
+  if (ev.name === 'trace_relationships' && r.graph?.nodes.length) { drawKG(r.graph, `Trace: ${r.region} · ${r.previous} → ${r.current} (multi-hop)`, true); follow('kg'); }
+}
+
+async function runAgent(question, layers, feed, withEffects = true) {
+  feed.innerHTML = '';
+  const think = document.createElement('div'); think.className = 'thinking';
+  const res = await fetch('/api/ask', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question, layers: [...layers] }) });
+  const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
+  const cards = {};
+  while (true) {
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const parts = buf.split('\n\n'); buf = parts.pop();
+    for (const p of parts) {
+      if (!p.startsWith('data: ')) continue;
+      const ev = JSON.parse(p.slice(6));
+      if (ev.type === 'thinking') { think.textContent = '🧠 thinking…'; feed.appendChild(think); }
+      else think.remove();
+      if (ev.type === 'tool_call') {
+        const c = document.createElement('div'); c.className = 'ev'; c.style.setProperty('--c', `var(--${ev.layer})`);
+        c.innerHTML = `<div class="ev-head"><span class="lay">${LNAME[ev.layer]}</span><span class="fn">${ev.name}</span></div>
+          <div class="args">${esc(JSON.stringify(ev.args)).slice(0, 400)}</div><div class="res">⏳</div>`;
+        feed.appendChild(c); cards[ev.id] = c;
+      }
+      if (ev.type === 'tool_result') {
+        cards[ev.id].querySelector('.res').innerHTML = renderResult(ev);
+        if (withEffects) sideEffects(ev);
+      }
+      if (ev.type === 'answer') {
+        const a = document.createElement('div'); a.className = 'answer';
+        a.innerHTML = `<h4>ANSWER · ${ev.seconds}s · ${layers.size ? [...layers].map(l => LNAME[l]).join(' + ') : 'no context layers'}</h4>${marked.parse(ev.text)}`;
+        feed.appendChild(a);
+      }
+      if (ev.type === 'error') feed.insertAdjacentHTML('beforeend', `<div class="err">⚠ ${esc(ev.text)}</div>`);
+      feed.scrollTop = feed.scrollHeight;
+    }
+  }
+}
+
+$('#askBtn').onclick = async () => {
+  const b = $('#askBtn'); b.disabled = true;
+  try { await runAgent($('#q').value, new Set(on), $('#feed')); } finally { b.disabled = false; }
+};
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) $('#askBtn').click(); });
+document.querySelectorAll('.chip[data-q]').forEach(c => c.onclick = () => { $('#q').value = c.dataset.q; });
+
+$('#cmpBtn').onclick = () => {
+  const q = $('#q').value; $('#cmpQ').textContent = '⚔ ' + q; $('#compare').classList.add('on');
+  runAgent(q, new Set(), $('#feedA'), false);
+  runAgent(q, new Set(LAYERS.map(l => l.id)), $('#feedB'), false);
+};
+$('#cmpClose').onclick = () => $('#compare').classList.remove('on');
+
+fetch('/api/info').then(r => r.json()).then(i => $('#model').textContent = i.model);
+loadKG(); loadOnto(); loadCatalog(); loadSemantic(); loadDashboard();
+</script>
+</body>
+</html>

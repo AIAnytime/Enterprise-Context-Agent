@@ -1,0 +1,18 @@
+[project]
+name = "enterprise-context-demo"
+version = "0.1.0"
+description = "Data Catalog + Semantic Layer + Ontology (rdflib) + Knowledge Graph (Neo4j) for an AI agent"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "openai>=1.50",
+    "rdflib>=7.0",
+    "neo4j>=5.20",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+]
+
+[tool.uv]
+package = false

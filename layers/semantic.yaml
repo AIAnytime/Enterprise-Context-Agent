@@ -1,0 +1,58 @@
+# ─────────────────────────────────────────────────────────────
+# LAYER 2 · SEMANTIC LAYER  —  "Which definition, and how to calculate it?"
+# One governed definition per metric, reused by BI, NL2SQL and agents.
+# ─────────────────────────────────────────────────────────────
+source: sales_data s
+joins:
+  - JOIN customers c ON c.customer_id = s.customer_id
+  - JOIN products p ON p.product_id = s.product_id
+
+metrics:
+  revenue:
+    label: Revenue
+    owner: Finance (CFO office)
+    description: Pre-tax revenue from orders, excluding cancelled orders.
+    expr: SUM(s.net_amount)
+    filters: ["s.cancel_flag = 'N'"]
+    unit: INR
+  gross_bookings:
+    label: Gross bookings
+    owner: Sales Ops
+    description: Everything booked, incl. GST and cancelled orders. NOT revenue.
+    expr: SUM(s.gross_amount)
+    filters: []
+    unit: INR
+  orders:
+    label: Orders
+    owner: Sales Ops
+    description: Count of non-cancelled orders.
+    expr: COUNT(*)
+    filters: ["s.cancel_flag = 'N'"]
+    unit: count
+  cancellation_rate:
+    label: Cancellation rate
+    owner: Sales Ops
+    description: Share of orders that were cancelled.
+    expr: ROUND(100.0 * SUM(CASE WHEN s.cancel_flag = 'Y' THEN 1 ELSE 0 END) / COUNT(*), 1)
+    filters: []
+    unit: "%"
+  active_customers:
+    label: Active customers
+    owner: Sales Ops
+    description: Distinct customers with at least one non-cancelled order.
+    expr: COUNT(DISTINCT s.customer_id)
+    filters: ["s.cancel_flag = 'N'"]
+    unit: count
+
+dimensions:
+  month: strftime('%Y-%m', s.order_date)
+  state: c.state_code
+  segment: c.segment
+  product: p.name
+  category: p.category
+  customer: c.name
+
+reporting_calendar:
+  current_month: "2026-09"      # open month, data through 2026-09-29
+  previous_month: "2026-08"
+  mom: "'month-on-month' / 'vs last month' = current_month vs previous_month; change = (current - previous) / previous"
